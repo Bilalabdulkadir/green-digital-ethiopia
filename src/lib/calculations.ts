@@ -1,44 +1,146 @@
-import { PUEResult, EnergySavingsResult, CarbonEmissionsResult, HardwareLifecycleResult, ScenarioInputs, ScenarioCompleteResult } from '../types/sustainability';
-import { getEmissionFactorById } from './emissionFactors';
+import { ScenarioInputs, ScenarioCompleteResult, EnergyBreakdown, WaterMetrics, EmissionBreakdown } from '../types/sustainability';
+import { EMISSION_FACTORS } from './emissionFactors';
 
-export function calculatePUE(facilityEnergyKWh:number,itEnergyKWh:number):PUEResult {
-  if (![facilityEnergyKWh,itEnergyKWh].every(Number.isFinite)) return {pue:0,itEnergyKWh:0,facilityEnergyKWh:0,overheadKWh:0,overheadPercentage:0,isValid:false,error:'Energy inputs must be valid finite numbers'};
-  if (itEnergyKWh<=0) return {pue:0,itEnergyKWh,facilityEnergyKWh,overheadKWh:0,overheadPercentage:0,isValid:false,error:'IT Equipment Energy must be strictly greater than 0'};
-  if (facilityEnergyKWh<itEnergyKWh) return {pue:0,itEnergyKWh,facilityEnergyKWh,overheadKWh:0,overheadPercentage:0,isValid:false,error:'Total Facility Energy cannot be less than IT Equipment Energy (PUE cannot be < 1.0)'};
-  const overheadKWh=Math.round((facilityEnergyKWh-itEnergyKWh)*100)/100;
-  return {pue:Math.round((facilityEnergyKWh/itEnergyKWh)*1000)/1000,itEnergyKWh,facilityEnergyKWh,overheadKWh,overheadPercentage:Math.round((overheadKWh/facilityEnergyKWh)*1000)/10,isValid:true};
+export function calculatePUE(inputs: ScenarioInputs): number {
+  let baseCoolingOverhead = 0.15;
+
+  switch (inputs.coolingType) {
+    case 'air_free_cooling':
+      baseCoolingOverhead = 0.12;
+      break;
+    case 'evaporative':
+      baseCoolingOverhead = 0.18;
+      break;
+    case 'closed_chilled_water':
+      baseCoolingOverhead = 0.32;
+      break;
+    case 'direct_liquid':
+      baseCoolingOverhead = 0.08;
+      break;
+  }
+
+  const tempDelta = Math.max(0, inputs.ambientTempMeanC - 18);
+  const tempPenalty = tempDelta * 0.008;
+  const electricalLosses = 0.07;
+  const auxLightingSecurity = 0.02;
+
+  const totalOverhead = baseCoolingOverhead + tempPenalty + electricalLosses + auxLightingSecurity;
+  return Number((1.0 + totalOverhead).toFixed(3));
 }
 
-export function calculateEnergySavings(servers:number,wattsSavedPerServer:number,operatingHoursPerDay=24):EnergySavingsResult {
-  if (![servers,wattsSavedPerServer,operatingHoursPerDay].every(Number.isFinite)) return {annualKWhSaved:0,dailyKWhSaved:0,isValid:false,error:'Inputs must be valid finite numbers'};
-  if (servers<0||wattsSavedPerServer<0||operatingHoursPerDay<0) return {annualKWhSaved:0,dailyKWhSaved:0,isValid:false,error:'Servers, watts saved, and operating hours cannot be negative'};
-  if (operatingHoursPerDay>24) return {annualKWhSaved:0,dailyKWhSaved:0,isValid:false,error:'Operating hours per day cannot exceed 24 hours'};
-  const daily=servers*wattsSavedPerServer*operatingHoursPerDay/1000;
-  return {dailyKWhSaved:Math.round(daily*100)/100,annualKWhSaved:Math.round(daily*365*100)/100,isValid:true};
+export function calculateEnergy(inputs: ScenarioInputs, pue: number): EnergyBreakdown {
+  const hoursPerYear = 8760;
+  const utilizationFactor = 0.6 + (inputs.averageServerUtilizationPct / 100) * 0.4;
+  const averageITLoadMW = inputs.itCapacityMW * utilizationFactor;
+
+  const annualITElectricityGWh = (averageITLoadMW * hoursPerYear) / 1000;
+  const totalAnnualElectricityGWh = annualITElectricityGWh * pue;
+  const overheadGWh = totalAnnualElectricityGWh - annualITElectricityGWh;
+
+  const annualCoolingElectricityGWh = overheadGWh * 0.65;
+  const annualPowerSystemLossesGWh = overheadGWh * 0.25;
+  const annualLightingAuxGWh = overheadGWh * 0.10;
+
+  return {
+    annualITElectricityGWh: Number(annualITElectricityGWh.toFixed(2)),
+    annualCoolingElectricityGWh: Number(annualCoolingElectricityGWh.toFixed(2)),
+    annualPowerSystemLossesGWh: Number(annualPowerSystemLossesGWh.toFixed(2)),
+    annualLightingAuxGWh: Number(annualLightingAuxGWh.toFixed(2)),
+    totalAnnualElectricityGWh: Number(totalAnnualElectricityGWh.toFixed(2)),
+    effectivePUE: pue
+  };
 }
 
-export function calculateCarbon(energyKWh:number,emissionFactorKgPerKWh:number,sourceDescription='Specified Factor'):CarbonEmissionsResult {
-  if (![energyKWh,emissionFactorKgPerKWh].every(Number.isFinite)) return {operationalKgCO2e:0,operationalTonsCO2e:0,emissionFactorUsed:0,emissionFactorSource:sourceDescription,isValid:false,error:'Energy and emission factor must be valid finite numbers'};
-  if (energyKWh<0||emissionFactorKgPerKWh<0) return {operationalKgCO2e:0,operationalTonsCO2e:0,emissionFactorUsed:emissionFactorKgPerKWh,emissionFactorSource:sourceDescription,isValid:false,error:'Energy and emission factor cannot be negative'};
-  const kg=energyKWh*emissionFactorKgPerKWh;
-  return {operationalKgCO2e:Math.round(kg*100)/100,operationalTonsCO2e:Math.round(kg/1000*1000)/1000,emissionFactorUsed:emissionFactorKgPerKWh,emissionFactorSource:sourceDescription,isValid:true};
+export function calculateWater(inputs: ScenarioInputs, energy: EnergyBreakdown): WaterMetrics {
+  let waterRatePerKWhCooling = EMISSION_FACTORS.WATER_EVAPORATIVE_L_PER_KWH_COOLING;
+  if (inputs.coolingType === 'air_free_cooling') {
+    waterRatePerKWhCooling = 0.10;
+  } else if (inputs.coolingType === 'closed_chilled_water') {
+    waterRatePerKWhCooling = EMISSION_FACTORS.WATER_CLOSED_LOOP_L_PER_KWH_COOLING;
+  } else if (inputs.coolingType === 'direct_liquid') {
+    waterRatePerKWhCooling = EMISSION_FACTORS.WATER_DIRECT_LIQUID_L_PER_KWH_COOLING;
+  }
+
+  const coolingKWh = energy.annualCoolingElectricityGWh * 1_000_000;
+  const annualWaterConsumptionLiters = coolingKWh * waterRatePerKWhCooling;
+  const annualWaterConsumptionM3 = annualWaterConsumptionLiters / 1000;
+
+  const itEnergyKWh = energy.annualITElectricityGWh * 1_000_000;
+  const effectiveWUE = itEnergyKWh > 0 ? Number((annualWaterConsumptionLiters / itEnergyKWh).toFixed(3)) : 0;
+
+  return {
+    annualWaterConsumptionLiters: Math.round(annualWaterConsumptionLiters),
+    annualWaterConsumptionM3: Number(annualWaterConsumptionM3.toFixed(1)),
+    effectiveWUE
+  };
 }
 
-export function calculateAvoidedCarbon(baselineCarbonKg:number,scenarioCarbonKg:number) { const avoidedKg=Math.max(0,baselineCarbonKg-scenarioCarbonKg); return {avoidedKg:Math.round(avoidedKg*100)/100,avoidedTons:Math.round(avoidedKg/1000*1000)/1000,percentReduction:baselineCarbonKg>0?Math.round((baselineCarbonKg-scenarioCarbonKg)/baselineCarbonKg*1000)/10:0}; }
+export function calculateEmissions(
+  inputs: ScenarioInputs,
+  energy: EnergyBreakdown
+): EmissionBreakdown {
+  const generatorCapacityKW = inputs.itCapacityMW * 1000 * 1.25;
+  const annualDieselGeneratedKWh = generatorCapacityKW * inputs.backupGeneratorHours;
+  const fuelBurnedLitres = annualDieselGeneratedKWh * inputs.backupFuelConsumptionLPerKWh;
+  const scope1DieselEmissionsKg = fuelBurnedLitres * inputs.dieselEmissionFactorKgPerLitre;
+  const scope1DieselEmissionsMtCO2e = Number((scope1DieselEmissionsKg / 1000).toFixed(2));
 
-export function calculateHardwareLifecycle(deviceCount:number,baselineLifespanYears:number,extendedLifespanYears:number,embodiedKgCO2ePerDevice=1250,weightKgPerDevice=22.5):HardwareLifecycleResult {
-  const empty={deviceCount,baselineLifespanYears,extendedLifespanYears,baselineAnnualReplacements:0,extendedAnnualReplacements:0,annualDevicesSaved:0,avoidedEmbodiedKgCO2eAnnual:0,avoidedEmbodiedTonsCO2eAnnual:0,avoidedEWasteKgAnnual:0,avoidedEWasteTonsAnnual:0};
-  if (![deviceCount,baselineLifespanYears,extendedLifespanYears,embodiedKgCO2ePerDevice,weightKgPerDevice].every(Number.isFinite)) return {...empty,isValid:false,error:'Device count and lifespans must be valid numbers'};
-  if(deviceCount<0||baselineLifespanYears<=0||extendedLifespanYears<=0) return {...empty,isValid:false,error:'Device count cannot be negative and lifespans must be strictly greater than 0'};
-  if(extendedLifespanYears<baselineLifespanYears) return {...empty,isValid:false,error:'Extended lifespan cannot be shorter than baseline lifespan'};
-  const base=deviceCount/baselineLifespanYears, ext=deviceCount/extendedLifespanYears, saved=Math.max(0,base-ext), embodied=saved*embodiedKgCO2ePerDevice, waste=saved*weightKgPerDevice;
-  return {deviceCount,baselineLifespanYears,extendedLifespanYears,baselineAnnualReplacements:Math.round(base*10)/10,extendedAnnualReplacements:Math.round(ext*10)/10,annualDevicesSaved:Math.round(saved*10)/10,avoidedEmbodiedKgCO2eAnnual:Math.round(embodied*100)/100,avoidedEmbodiedTonsCO2eAnnual:Math.round(embodied)/1000,avoidedEWasteKgAnnual:Math.round(waste*100)/100,avoidedEWasteTonsAnnual:Math.round(waste)/1000,isValid:true};
+  const gridElectricityKWh = Math.max(0, (energy.totalAnnualElectricityGWh * 1_000_000) - annualDieselGeneratedKWh);
+  const scope2GridEmissionsKg = gridElectricityKWh * inputs.gridEmissionFactorKgPerKWh;
+  const scope2GridEmissionsMtCO2e = Number((scope2GridEmissionsKg / 1000).toFixed(2));
+
+  const scope2MarginalEmissionsKg = gridElectricityKWh * inputs.marginalGridFactorKgPerKWh;
+  const scope2MarginalEmissionsMtCO2e = Number((scope2MarginalEmissionsKg / 1000).toFixed(2));
+
+  const totalEmbodiedServerKg = inputs.serverCount * inputs.embodiedCarbonPerServerKgCO2e;
+  const recyclingCreditMultiplier = Math.max(0.70, 1.0 - (inputs.circularityRecyclingPct / 100) * 0.35);
+  const netEmbodiedServerKg = totalEmbodiedServerKg * recyclingCreditMultiplier;
+  const annualAmortizedScope3Kg = netEmbodiedServerKg / Math.max(1, inputs.hardwareLifespanYears);
+  const scope3EmbodiedAmortizedMtCO2e = Number((annualAmortizedScope3Kg / 1000).toFixed(2));
+
+  const heatAvailableGWh = energy.annualITElectricityGWh * 0.70;
+  const heatUtilizedGWh = heatAvailableGWh * (inputs.wasteHeatReusePct / 100);
+  const avoidedEmissionsKg = heatUtilizedGWh * 1_000_000 * 0.20;
+  const annualAvoidedEmissionsHeatReuseMtCO2e = Number((avoidedEmissionsKg / 1000).toFixed(2));
+
+  const totalAnnualEmissionsMtCO2e = Number(
+    (scope1DieselEmissionsMtCO2e + scope2GridEmissionsMtCO2e + scope3EmbodiedAmortizedMtCO2e - annualAvoidedEmissionsHeatReuseMtCO2e).toFixed(2)
+  );
+
+  const totalITMWh = energy.annualITElectricityGWh * 1000;
+  const emissionsIntensityPerMWhIT = totalITMWh > 0 ? Number(((totalAnnualEmissionsMtCO2e * 1000) / totalITMWh).toFixed(2)) : 0;
+
+  return {
+    scope1DieselEmissionsMtCO2e,
+    scope2GridEmissionsMtCO2e,
+    scope2MarginalEmissionsMtCO2e,
+    scope3EmbodiedAmortizedMtCO2e,
+    annualAvoidedEmissionsHeatReuseMtCO2e,
+    totalAnnualEmissionsMtCO2e,
+    emissionsIntensityPerMWhIT
+  };
 }
 
-export function calculateCompleteScenario(inputs:ScenarioInputs):ScenarioCompleteResult {
-  const pue=calculatePUE(inputs.totalFacilityEnergyKWh,inputs.itEquipmentEnergyKWh); const energySavings=calculateEnergySavings(inputs.serverCount,inputs.wattsSavedPerServer,inputs.operatingHoursPerDay); const factor=getEmissionFactorById(inputs.gridEmissionFactorId);
-  const baselineCarbon=calculateCarbon(inputs.totalFacilityEnergyKWh,factor.value,factor.name); let optimizedFacilityKWh=inputs.totalFacilityEnergyKWh;
-  if(pue.isValid&&inputs.targetPUE>=1&&inputs.targetPUE<pue.pue) optimizedFacilityKWh=Math.max(inputs.itEquipmentEnergyKWh,inputs.itEquipmentEnergyKWh*inputs.targetPUE-energySavings.annualKWhSaved); else optimizedFacilityKWh=Math.max(inputs.itEquipmentEnergyKWh,inputs.totalFacilityEnergyKWh-energySavings.annualKWhSaved);
-  const ppa=Math.min(1,Math.max(0,inputs.renewablePPAFraction)); const optimizedCarbon=calculateCarbon(optimizedFacilityKWh,factor.value*(1-ppa),`Optimized Mix (${(ppa*100).toFixed(0)}% Dedicated Clean PPA + EEP Grid)`); const lifecycle=calculateHardwareLifecycle(inputs.deviceCount,inputs.baselineLifespanYears,inputs.extendedLifespanYears,inputs.embodiedCarbonPerDeviceKg,inputs.deviceWeightKg);
-  return {scenarioId:`GDE-SCENARIO-${Date.now().toString(36).toUpperCase()}`,timestamp:new Date().toISOString(),pue,energySavings,baselineCarbon,optimizedCarbon,lifecycle,netAvoidedCarbonTonsAnnual:Math.round((Math.max(0,baselineCarbon.operationalTonsCO2e-optimizedCarbon.operationalTonsCO2e)+lifecycle.avoidedEmbodiedTonsCO2eAnnual)*1000)/1000,metadata:{methodologyVersion:'NEXUS-GDE-Methodology-v0.2-Deterministic',calculationEngine:'TypeScript-PureMath-ISO-30134-2-Compliant',author:'Bilal Abdulkadir Muhammed'}};
+export function calculateCompleteScenario(inputs: ScenarioInputs): ScenarioCompleteResult {
+  const pue = calculatePUE(inputs);
+  const energy = calculateEnergy(inputs, pue);
+  const water = calculateWater(inputs, energy);
+  const emissions = calculateEmissions(inputs, energy);
+
+  const itEnergyKWh = energy.annualITElectricityGWh * 1_000_000;
+  const cue = itEnergyKWh > 0 ? Number(((emissions.totalAnnualEmissionsMtCO2e * 1000) / itEnergyKWh).toFixed(4)) : 0;
+
+  return {
+    inputs,
+    metrics: {
+      pue,
+      wue: water.effectiveWUE,
+      cue,
+      annualGridLoadGWh: energy.totalAnnualElectricityGWh
+    },
+    energy,
+    water,
+    emissions,
+    timestamp: new Date().toISOString()
+  };
 }
