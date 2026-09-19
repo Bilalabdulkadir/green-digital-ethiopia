@@ -1,26 +1,78 @@
-import { describe, it, expect } from 'vitest';
+export type EvidenceClass = 'empirical' | 'regional_benchmark' | 'model_assumption';
 
-describe('Backend Server API Contract', () => {
-  it('verifies health check endpoint response contract', () => {
-    const mockHealth = {
-      status: 'ok',
-      service: 'Green Digital Ethiopia Research Platform',
-      version: '0.2.0',
-      timestamp: new Date().toISOString()
-    };
-    expect(mockHealth.status).toBe('ok');
-    expect(mockHealth.version).toBe('0.2.0');
-  });
+export interface EvidenceClassification {
+  category: EvidenceClass;
+  source: string;
+  confidenceScore: number;
+  notes: string;
+}
 
-  it('verifies deterministic fallback structure when AI key is omitted', () => {
-    const sampleAdvice = {
-      title: 'Altitude & Free-Cooling PUE Optimization',
-      recommendations: ['Rule 1', 'Rule 2'],
-      tradeoffs: 'Tradeoff analysis',
-      evidenceGaps: 'Gaps recorded',
-      immediateActions: ['Action 1']
-    };
-    expect(sampleAdvice.recommendations.length).toBeGreaterThan(0);
-    expect(sampleAdvice.immediateActions.length).toBeGreaterThan(0);
-  });
-});
+export interface ScenarioInputs {
+  facilityName: string;
+  location: string;
+  itCapacityMW: number;
+  averageServerUtilizationPct: number;
+  coolingType: 'air_free_cooling' | 'evaporative' | 'closed_chilled_water' | 'direct_liquid';
+  ambientTempMeanC: number;
+  gridEmissionFactorKgPerKWh: number;
+  marginalGridFactorKgPerKWh: number;
+  gridReliabilityPct: number;
+  backupGeneratorHours: number;
+  dieselEmissionFactorKgPerLitre: number;
+  backupFuelConsumptionLPerKWh: number;
+  hardwareLifespanYears: number;
+  serverCount: number;
+  embodiedCarbonPerServerKgCO2e: number;
+  circularityRecyclingPct: number;
+  wasteHeatReusePct: number;
+  evidenceClasses: Record<string, EvidenceClass>;
+}
+
+export interface EnergyBreakdown {
+  annualITElectricityGWh: number;
+  annualCoolingElectricityGWh: number;
+  annualPowerSystemLossesGWh: number;
+  annualLightingAuxGWh: number;
+  totalAnnualElectricityGWh: number;
+  effectivePUE: number;
+}
+
+export interface WaterMetrics {
+  annualWaterConsumptionM3: number;
+  annualWaterConsumptionLiters: number;
+  effectiveWUE: number;
+}
+
+export interface EmissionBreakdown {
+  scope1DieselEmissionsMtCO2e: number;
+  scope2GridEmissionsMtCO2e: number;
+  scope2MarginalEmissionsMtCO2e: number;
+  scope3EmbodiedAmortizedMtCO2e: number;
+  annualAvoidedEmissionsHeatReuseMtCO2e: number;
+  totalAnnualEmissionsMtCO2e: number;
+  emissionsIntensityPerMWhIT: number;
+}
+
+export interface ScenarioCompleteResult {
+  inputs: ScenarioInputs;
+  metrics: {
+    pue: number;
+    wue: number;
+    cue: number;
+    annualGridLoadGWh: number;
+  };
+  energy: EnergyBreakdown;
+  water: WaterMetrics;
+  emissions: EmissionBreakdown;
+  timestamp: string;
+}
+
+export interface AIAdvisorResponse {
+  title: string;
+  recommendations: string[];
+  tradeoffs: string;
+  evidenceGaps: string;
+  immediateActions: string[];
+  isAIGenerated?: boolean;
+  source?: string;
+}
