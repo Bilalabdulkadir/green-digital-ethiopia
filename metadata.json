@@ -1,0 +1,6 @@
+{
+  "name": "Green Digital Ethiopia",
+  "description": "Sustainable digital infrastructure and policy research platform by Bilal Abdulkadir Muhammed (NEXUS Public Policy Lab) featuring deterministic sustainability modeling, PUE calculators, and AI policy advisories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
