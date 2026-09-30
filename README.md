@@ -68,6 +68,32 @@ Ethiopia.
 ---
 
 # 🚀 Live & Project Resources
+---
+
+## 📖 Overview
+
+**Green Digital Ethiopia** is an independent research and software project
+exploring the intersection of:
+
+- 🤖 Artificial Intelligence
+- 🌱 Green ICT
+- ⚡ Energy efficiency
+- 🏢 Data-centre sustainability
+- ☁️ Sustainable cloud computing
+- ♻️ ICT lifecycle management
+- 🔄 Electronic-waste management
+- 📊 Data analytics
+- 🏛️ Digital policy
+- 🌍 Sustainable digital transformation
+
+The project investigates how AI, software engineering, data analysis, and
+sustainability frameworks can support more efficient, measurable,
+resilient, and environmentally responsible digital infrastructure in
+Ethiopia.
+
+---
+
+## 🚀 Live & Project Resources
 
 | Resource | Access |
 |---|---|
@@ -79,6 +105,19 @@ Ethiopia.
 > **Note:** Access to the Google AI Studio application may require a
 > Google account and appropriate permissions.
 
+---
+
+## 🤖 Built with Google AI Studio
+
+This project was developed with assistance from
+[Google AI Studio](https://aistudio.google.com/apps) and Gemini.
+
+Google AI Studio and Gemini are used to support application development,
+AI-assisted analysis, experimentation, and natural-language interaction.
+
+AI is treated as an analytical support mechanism rather than an
+authoritative source of environmental, engineering, scientific, or
+policy evidence.
 ---
 
 # 🚀 Built with Google AI Studio
@@ -101,31 +140,7 @@ Digital transformation is creating increasing demand for:
 
 - Computing infrastructure
 - Data centres
-- Cloud services
-- Network infrastructure
-- Digital devices
-- Software platforms
-- ICT support services
-
-These technologies create significant opportunities for economic and
-social development, but they also introduce sustainability challenges.
-
-Green Digital Ethiopia provides a foundation for exploring questions such
-as:
-
-- How efficiently does digital infrastructure use energy?
-- How can ICT energy efficiency be measured?
-- How can data-centre efficiency be assessed?
-- How can renewable energy support digital infrastructure?
-- How should ICT equipment be managed throughout its lifecycle?
-- How can electronic waste be reduced?
-- How can organisations measure Green ICT performance?
-- How can AI support sustainability analysis?
-- How can digital transformation become more environmentally responsible?
-
----
-
-# 🎯 Project Objectives
+- Cloud service# 🎯 Project Objectives
 
 The project aims to:
 
@@ -146,7 +161,7 @@ The project aims to:
 
 # 🌍 Ethiopia Context
 
-The project is designed around the Ethiopian digital infrastructure
+The project is designed around the Ethiopian dig infrastructure
 context.
 
 Research and analytical areas may include:
@@ -160,7 +175,7 @@ Research and analytical areas may include:
 - Cooling requirements
 - Infrastructure optimization
 
-### 🖥️ ICT Infrastructure
+
 
 - Servers
 - Networks
